@@ -29,7 +29,7 @@ pip install -r requirements.txt
 python bot.py
 ```
 
-**Python-dotenv reads key-value pairs from the .env file and can set them as environment variables. In this file, we create variables where we will store the keys from TG and Yandex.**
+**Python-dotenv reads key-value pairs from the **.env** file and can set them as environment variables. In this file, we create variables where we will store the keys from TG and Yandex.**
 ```.env
 TELEGRAM_BOT_TOKEN=YOUR_TOKEN
 YANDEX_CLOUD_OAUTH_TOKEN=YOUR_TOKEN
