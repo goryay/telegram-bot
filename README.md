@@ -6,6 +6,7 @@ Telegram bot for technical support
 
 ### This is a bot designed to solve problems such as:
 **1.** Technical problems;
+
 **2.** To solve customization problems;
 
 ## Dependencies used *requirements.txt*
