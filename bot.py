@@ -1,90 +1,111 @@
-import logging
 import os
 from dotenv import load_dotenv
+import telebot
+from telebot import types
+from docx import Document
+from yandex_cloud_ml_sdk import YCloudML
+import difflib
 
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-import requests
-
+# Загрузка переменных из .env
 load_dotenv()
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-YANDEX_CLOUD_OAUTH_TOKEN = os.getenv('YANDEX_CLOUD_OAUTH_TOKEN')
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+YANDEX_CLOUD_FOLDER_ID = os.getenv("YANDEX_CLOUD_FOLDER_ID")
+YANDEX_CLOUD_OAUTH_TOKEN = os.getenv("YANDEX_CLOUD_OAUTH_TOKEN")
 
-
-def get_yandex_gpt_response(user_input):
-    try:
-        endpoint = ''
-
-        headers = {
-            'Authorization': f'Bearer {YANDEX_CLOUD_OAUTH_TOKEN}',
-            'Content-Type': 'application/json'
-        }
-
-        payload = {
-            "text": user_input,
-            "temperature": 0.7,
-            "maxTokens": 150,
-            "topP": 0.95,
-            "topK": 50,
-        }
-
-        response = requests.post(endpoint, headers=headers, json=payload)
-        response.raise_for_status()
-
-        data = response.json()
-        generated_text = data.get('predictions', [{}])[0].get('text', '').strip()
-        return generated_text if generated_text else 'Извините, я не смог сгенерировать ответ.'
-    except Exception as e:
-        logger.error(f"Ошибка при обращении к Yandex GPT API: {e}")
-        return "Извините, возникла проблема при обработке вашего запроса. Пожалуйста, попробуйте позже."
+# Инициализация SDK и Telegram-бота
+ycloud = YCloudML(folder_id=YANDEX_CLOUD_FOLDER_ID, auth=YANDEX_CLOUD_OAUTH_TOKEN)
+bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
 
-def start(update, context):
-    update.message.reply_text(
-        'Здравствуйте! Я бот технической поддержки. Опишите, пожалуйста, вашу проблему, и я постараюсь помочь.'
+# Функция для загрузки документа
+def load_document(filepath):
+    doc = Document(filepath)
+    return [paragraph.text.strip() for paragraph in doc.paragraphs if paragraph.text.strip()]
+
+
+# Загрузка документа с вопросами и ответами
+document_data = load_document("qa.docx")
+
+
+# Функция для поиска наиболее подходящего контекста
+def find_relevant_context(question, document):
+    matches = difflib.get_close_matches(question.lower(), [p.lower() for p in document], n=1, cutoff=0.1)
+    if matches:
+        return next(p for p in document if p.lower() == matches[0])
+    return None
+
+
+# Функция для обработки текста, чтобы убрать лишние символы
+def clean_response(response):
+    if hasattr(response, "text"):
+        return response.text.strip()
+    return "Извините, произошла ошибка с форматом ответа."
+
+
+# Функция для генерации ответа через YandexGPT
+def generate_answer(question, context):
+    model = ycloud.models.completions("yandexgpt").configure(temperature=0.7)
+    prompt = f"Вопрос: {question}\nКонтекст: {context}\nОтвет:"
+    result = model.run(prompt)
+    if result:
+        return clean_response(result[0])
+    return "Извините, не удалось сгенерировать ответ."
+
+
+# Приветственное сообщение и меню
+@bot.message_handler(commands=["start"])
+def start_message(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    btn1 = types.KeyboardButton("🛠 Справка")
+    btn2 = types.KeyboardButton("💬 Задать вопрос")
+    btn3 = types.KeyboardButton("ℹ️ О боте")
+    markup.add(btn1, btn2, btn3)
+
+    bot.send_message(
+        message.chat.id,
+        "Привет! Я бот технической поддержки IPDROM. Выберите нужную опцию из меню ниже:",
+        reply_markup=markup,
     )
 
 
-def help_command(update, context):
-    update.message.reply_text(
-        'Вы можете задать мне любой вопрос, связанный с технической поддержкой, и я постараюсь помочь.'
-    )
+# Обработчик текстовых сообщений
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+    if message.text == "🛠 Справка":
+        bot.send_message(
+            message.chat.id,
+            "Я могу помочь с техническими вопросами. Просто напишите ваш вопрос или выберите другую опцию.",
+        )
+    elif message.text == "💬 Задать вопрос":
+        bot.send_message(
+            message.chat.id,
+            "Напишите ваш вопрос, и я постараюсь найти ответ."
+        )
+    elif message.text == "ℹ️ О боте":
+        bot.send_message(
+            message.chat.id,
+            "Я бот технической поддержки IPDROM, для помощи с вашими запросами. "
+            "Задайте ваш вопрос!"
+        )
+    else:
+        user_question = message.text
+
+        # Найти релевантный контекст
+        relevant_context = find_relevant_context(user_question, document_data)
+
+        if not relevant_context:
+            bot.send_message(message.chat.id, "Контекст для вашего вопроса не найден.")
+            return
+
+        # Генерация ответа
+        answer = generate_answer(user_question, relevant_context)
+
+        # Форматируем сообщение перед отправкой
+        formatted_message = f"**Ваш вопрос:**\n{user_question}\n\n**Ответ:**\n{answer}"
+        bot.send_message(message.chat.id, formatted_message, parse_mode="Markdown")
 
 
-def handle_message(update, context):
-    user_message = update.message.text
-    user_id = update.effective_chat.id
-
-    logger.info(f"Получено сообщение от пользователя {user_id}: {user_message}")
-
-    reply = get_yandex_gpt_response(user_message)
-    update.message.reply_text(reply)
-
-
-def main():
-    print(f"Токен Telegram бота: {TELEGRAM_BOT_TOKEN}")
-    if TELEGRAM_BOT_TOKEN is None:
-        logger.error("Токен Telegram бота не найден. Установите переменную окружения TELEGRAM_BOT_TOKEN.")
-        return
-
-    updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
-
-    dp.add_handler(CommandHandler('start', start))
-    dp.add_handler(CommandHandler('help', help_command))
-
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-
-    updater.start_polling()
-    logger.info("Бот запущен и ожидает сообщений...")
-
-    updater.idle()
-
-
-if __name__ == '__main__':
-    main()
+# Запуск бота
+if __name__ == "__main__":
+    bot.polling()
