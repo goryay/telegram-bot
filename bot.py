@@ -6,18 +6,15 @@ from docx import Document
 from yandex_cloud_ml_sdk import YCloudML
 import difflib
 
-# Загрузка переменных из .env
 load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 YANDEX_CLOUD_FOLDER_ID = os.getenv("YANDEX_CLOUD_FOLDER_ID")
 YANDEX_CLOUD_OAUTH_TOKEN = os.getenv("YANDEX_CLOUD_OAUTH_TOKEN")
 
-# Инициализация SDK и Telegram-бота
 ycloud = YCloudML(folder_id=YANDEX_CLOUD_FOLDER_ID, auth=YANDEX_CLOUD_OAUTH_TOKEN)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
-# Хранилище состояний диалога
 user_states = {}
 
 
@@ -57,16 +54,16 @@ def generate_answer(question, context):
 
 
 # Приветственное сообщение и меню
-@bot.message_handler(commands=["start"])
+@bot.message_handler(commands=["start", "restart"])
 def start_message(message):
-    # Инициализируем состояние пользователя
     user_states[message.chat.id] = {"context": None, "previous_question": None}
 
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     btn1 = types.KeyboardButton("🛠 Справка")
     btn2 = types.KeyboardButton("💬 Задать вопрос")
     btn3 = types.KeyboardButton("ℹ️ О боте")
-    markup.add(btn1, btn2, btn3)
+    btn4 = types.KeyboardButton("🔄 Перезапуск (Reset)")
+    markup.add(btn1, btn2, btn3, btn4)
 
     bot.send_message(
         message.chat.id,
@@ -96,8 +93,14 @@ def handle_message(message):
             "Я бот технической поддержки, созданный для помощи с вашими запросами. "
             "Моя база данных содержит решения для различных проблем. Задайте ваш вопрос!"
         )
+    elif message.text == "🔄 Перезапуск (Reset)":
+        user_states[chat_id] = {"context": None, "previous_question": None}
+        bot.send_message(
+            message.chat.id,
+            "Все данные сброшены. Вы можете начать заново, выбрав команду или задав новый вопрос.",
+        )
+        start_message(message)
     elif message.text.lower() == "продолжить":
-        # Проверяем, есть ли сохраненный контекст
         if chat_id in user_states and user_states[chat_id]["context"]:
             previous_context = user_states[chat_id]["context"]
             bot.send_message(
@@ -112,7 +115,6 @@ def handle_message(message):
     else:
         user_question = message.text
 
-        # Найти релевантный контекст
         relevant_context = find_relevant_context(user_question, document_data)
 
         if not relevant_context:
@@ -133,6 +135,5 @@ def handle_message(message):
         bot.send_message(message.chat.id, formatted_message, parse_mode="Markdown")
 
 
-# Запуск бота
 if __name__ == "__main__":
     bot.polling()
