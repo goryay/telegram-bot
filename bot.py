@@ -5,6 +5,7 @@ from telebot import types
 from docx import Document
 from yandex_cloud_ml_sdk import YCloudML
 import difflib
+import re
 
 load_dotenv()
 
@@ -24,7 +25,6 @@ def load_document(filepath):
     return [paragraph.text.strip() for paragraph in doc.paragraphs if paragraph.text.strip()]
 
 
-# Загрузка документа с вопросами и ответами
 document_data = load_document("qa.docx")
 
 
@@ -34,6 +34,11 @@ def find_relevant_context(question, document):
     if matches:
         return next(p for p in document if p.lower() == matches[0])
     return None
+
+
+def escape_markdown(text):
+    """Экранирование специальных символов в Markdown."""
+    return re.sub(r'([_*[\]()~`>#+\-=|{}.!])', r'\\\1', text)
 
 
 # Функция для обработки текста, чтобы убрать лишние символы
