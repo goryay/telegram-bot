@@ -17,6 +17,9 @@ YANDEX_CLOUD_OAUTH_TOKEN = os.getenv("YANDEX_CLOUD_OAUTH_TOKEN")
 ycloud = YCloudML(folder_id=YANDEX_CLOUD_FOLDER_ID, auth=YANDEX_CLOUD_OAUTH_TOKEN)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
+# Хранилище состояний диалога
+user_states = {}
+
 
 # Функция для загрузки документа
 def load_document(filepath):
@@ -56,6 +59,9 @@ def generate_answer(question, context):
 # Приветственное сообщение и меню
 @bot.message_handler(commands=["start"])
 def start_message(message):
+    # Инициализируем состояние пользователя
+    user_states[message.chat.id] = {"context": None, "previous_question": None}
+
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     btn1 = types.KeyboardButton("🛠 Справка")
     btn2 = types.KeyboardButton("💬 Задать вопрос")
@@ -64,7 +70,7 @@ def start_message(message):
 
     bot.send_message(
         message.chat.id,
-        "Привет! Я бот технической поддержки IPDROM. Выберите нужную опцию из меню ниже:",
+        "Привет! Я бот технической поддержки. Выберите нужную опцию из меню ниже:",
         reply_markup=markup,
     )
 
@@ -72,6 +78,8 @@ def start_message(message):
 # Обработчик текстовых сообщений
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
+    chat_id = message.chat.id
+
     if message.text == "🛠 Справка":
         bot.send_message(
             message.chat.id,
@@ -85,9 +93,22 @@ def handle_message(message):
     elif message.text == "ℹ️ О боте":
         bot.send_message(
             message.chat.id,
-            "Я бот технической поддержки IPDROM, для помощи с вашими запросами. "
-            "Задайте ваш вопрос!"
+            "Я бот технической поддержки, созданный для помощи с вашими запросами. "
+            "Моя база данных содержит решения для различных проблем. Задайте ваш вопрос!"
         )
+    elif message.text.lower() == "продолжить":
+        # Проверяем, есть ли сохраненный контекст
+        if chat_id in user_states and user_states[chat_id]["context"]:
+            previous_context = user_states[chat_id]["context"]
+            bot.send_message(
+                message.chat.id,
+                f"Хорошо, продолжим с этим контекстом:\n{previous_context}\n\nПожалуйста, уточните ваш вопрос.",
+            )
+        else:
+            bot.send_message(
+                message.chat.id,
+                "Контекста для продолжения нет. Пожалуйста, задайте новый вопрос."
+            )
     else:
         user_question = message.text
 
@@ -101,8 +122,14 @@ def handle_message(message):
         # Генерация ответа
         answer = generate_answer(user_question, relevant_context)
 
+        # Сохранение состояния пользователя
+        user_states[chat_id] = {
+            "context": relevant_context,
+            "previous_question": user_question,
+        }
+
         # Форматируем сообщение перед отправкой
-        formatted_message = f"**Ваш вопрос:**\n{user_question}\n\n**Ответ:**\n{answer}"
+        formatted_message = f"**Ваш вопрос:**\n{user_question}\n\n**Ответ:**\n{answer}\n\nЕсли ответ частично подходит, напишите 'Продолжить', чтобы уточнить вопрос."
         bot.send_message(message.chat.id, formatted_message, parse_mode="Markdown")
 
 
