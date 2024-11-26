@@ -24,6 +24,11 @@ six
 pip install -r requirements.txt
 ```
 
+## The yandex-sdk library was also used to utilize YandexGPT. You can read more [here](https://github.com/yandex-cloud/yandex-cloud-ml-sdk).
+```commandline
+pip install yandex-cloud-ml-sdk
+```
+
 ## Starting the bot
 ```shell
 python bot.py
