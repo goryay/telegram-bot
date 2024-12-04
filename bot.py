@@ -95,6 +95,16 @@ def handle_message(message):
             start_message(message)
         return
 
+    general_responses = {
+        "привет": "Здравствуйте! Чем могу помочь?",
+        "ну привет": "Здравствуйте! Напишите, что вас интересует.",
+        "как дела": "Я бот, у меня всё отлично. Чем могу помочь?"
+    }
+
+    if user_question.lower() in general_responses:
+        bot.send_message(message.chat.id, general_responses[user_question.lower()])
+        return
+
     if not is_technical_question(user_question, document_data):
         bot.send_message(chat_id, "Этот запрос не относится к техническим вопросам. Пожалуйста, задайте другой вопрос.")
         return
