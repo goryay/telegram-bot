@@ -7,7 +7,6 @@ from yandex_cloud_ml_sdk import YCloudML
 import difflib
 import re
 
-# Загрузка переменных из .env
 load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -37,19 +36,17 @@ def find_relevant_context(question, document, cutoff=0.5):
 
 # Функция для определения технического вопроса
 def is_technical_question(question, document):
-    # Сначала проверяем, есть ли ответ в документации
     relevant_context = find_relevant_context(question, document, cutoff=0.3)
     if relevant_context:
-        return True  # Если в документации найден релевантный контекст
+        return True
 
-    # Если в документации ничего не найдено, проверяем по ключевым словам
     technical_keywords = [
         "IPMI", "BIOS", "RAID", "вентилятор", "сервер", "контроллер", "OC", "сеть", "SSH", "драйвер", "API"
     ]
     for keyword in technical_keywords:
         if keyword.lower() in question.lower():
             return True
-    return False  # Если ни документация, ни ключевые слова не подходят
+    return False
 
 
 # Генерация ответа через Yandex GPT
@@ -86,7 +83,6 @@ def handle_message(message):
     chat_id = message.chat.id
     user_question = message.text
 
-    # Обработка кнопок
     if user_question in ["🛠 Справка", "💬 Задать вопрос", "ℹ️ О боте", "🔄 Перезапуск (Reset)"]:
         if user_question == "🛠 Справка":
             bot.send_message(chat_id, "Я могу помочь с техническими вопросами. Просто напишите ваш вопрос.")
@@ -99,12 +95,10 @@ def handle_message(message):
             start_message(message)
         return
 
-    # Проверяем, является ли вопрос техническим
     if not is_technical_question(user_question, document_data):
         bot.send_message(chat_id, "Этот запрос не относится к техническим вопросам. Пожалуйста, задайте другой вопрос.")
         return
 
-    # Поиск в документации
     relevant_context = find_relevant_context(user_question, document_data)
     if relevant_context:
         formatted_message = (
@@ -113,7 +107,6 @@ def handle_message(message):
         )
         bot.send_message(chat_id, formatted_message, parse_mode="Markdown")
     else:
-        # Использование Yandex GPT
         bot.send_message(chat_id, "Выполняется поиск...")
         gpt_answer = generate_answer_via_gpt(user_question)
         formatted_message = (
