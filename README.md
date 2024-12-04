@@ -32,7 +32,6 @@ pip install yandex-cloud-ml-sdk
 *To install all plugins at once*
 ```commandline
 pip install python-dotenv telebot python-docx yandex-cloud-ml-sdk
-
 ```
 
 ## Starting the bot
