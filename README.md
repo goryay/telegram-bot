@@ -43,5 +43,6 @@ python bot.py
 **Python-dotenv reads key-value pairs from the `.env` file and can set them as environment variables. In this file, we create variables where we will store the keys from TG and Yandex.**
 ```.env
 TELEGRAM_BOT_TOKEN=YOUR_TOKEN
+YANDEX_CLOUD_FOLDER_ID=YOUR_FOLDER_ID
 YANDEX_CLOUD_OAUTH_TOKEN=YOUR_TOKEN
 ```
