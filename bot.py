@@ -76,7 +76,6 @@ def is_technical_question(question, document):
 
     return False
 
-
 # Генерация ответа через Yandex GPT
 def generate_answer_via_gpt(question):
     """
