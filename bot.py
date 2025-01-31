@@ -12,6 +12,7 @@ from yandex_cloud_ml_sdk import YCloudML
 
 load_dotenv()
 
+CHAT_ID = os.getenv("CHAT_ID")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 YANDEX_CLOUD_FOLDER_ID = os.getenv("YANDEX_CLOUD_FOLDER_ID")
 YANDEX_CLOUD_OAUTH_TOKEN = os.getenv("YANDEX_CLOUD_OAUTH_TOKEN")
@@ -128,7 +129,7 @@ def send_alive_message():
     """
     Каждые 30 минут бот отправляет сообщение о том, что он работает.
     """
-    chat_id = TELEGRAM_BOT_TOKEN
+    chat_id = CHAT_ID
     while True:
         time.sleep(1800)  # 30 минут
         bot.send_message(chat_id, f"✅ Бот всё ещё работает! ⏳ Аптайм: {get_uptime()}")
