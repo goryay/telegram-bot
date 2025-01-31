@@ -1,11 +1,14 @@
 import os
-from dotenv import load_dotenv
-import telebot
-from telebot import types
-from docx import Document
-from yandex_cloud_ml_sdk import YCloudML
-import difflib
 import re
+import time
+import datetime
+import telebot
+import difflib
+import threading
+from telebot import types
+from dotenv import load_dotenv
+from difflib import SequenceMatcher
+from yandex_cloud_ml_sdk import YCloudML
 
 load_dotenv()
 
@@ -16,41 +19,85 @@ YANDEX_CLOUD_OAUTH_TOKEN = os.getenv("YANDEX_CLOUD_OAUTH_TOKEN")
 ycloud = YCloudML(folder_id=YANDEX_CLOUD_FOLDER_ID, auth=YANDEX_CLOUD_OAUTH_TOKEN)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
+start_time = datetime.datetime.now()
 
-# Функция для загрузки документа
+
+def get_uptime():
+    """Возвращает, сколько времени бот работает (формат: Часы:Минуты:Секунды)"""
+    uptime = datetime.datetime.now() - start_time
+    return str(uptime).split('.')[0]  # Убираем микросекунды
+
+
 def load_document(filepath):
-    doc = Document(filepath)
-    return [paragraph.text.strip() for paragraph in doc.paragraphs if paragraph.text.strip()]
+    with open(filepath, "r", encoding="utf-8") as file:
+        return file.read()  # Читаем весь файл как строку
 
 
-document_data = load_document("qa.docx")
+document_data = load_document("qa.md")
 
 
-# Функция для поиска релевантного контекста
-def find_relevant_context(question, document, cutoff=0.5):
-    matches = difflib.get_close_matches(question.lower(), [p.lower() for p in document], n=1, cutoff=cutoff)
-    if matches:
-        return next(p for p in document if p.lower() == matches[0])
-    return None
-
-
-# Функция для определения технического вопроса
-def is_technical_question(question, document):
-    relevant_context = find_relevant_context(question, document, cutoff=0.3)
-    if relevant_context:
-        return True
-
+def is_technical_question(question):
+    """
+    Проверяет, относится ли вопрос к техническим темам.
+    """
     technical_keywords = [
-        "IPMI", "BIOS", "RAID", "вентилятор", "сервер", "контроллер", "OC", "сеть", "SSH", "драйвер", "API"
+        "IPMI", "BIOS", "RAID", "вентилятор", "сервер", "контроллер", "ОС", "сеть", "SSH", "драйвер", "API",
+        "Windows", "Linux", "Ubuntu", "Debian", "Arch", "CentOS", "Fedora", "переустановка", "восстановление",
+        "диагностика", "логи", "видеокарта", "VGA", "SSD", "HDD", "UEFI", "POST", "разгон", "установка",
+        "железо", "процессор", "чипсет", "интерфейс", "настройка", "оперативная память", "режим", "порт",
+        "дисковая система", "BIOS", "материнская плата", "разгон", "хранилище", "охлаждение", "конфигурация",
+        "система", "apt", "yum", "snap", "dpkg", "systemctl", "grub", "swap", "root", "boot", "sudo", "bash"
     ]
+
     for keyword in technical_keywords:
         if keyword.lower() in question.lower():
+            print(f"[LOG] Вопрос '{question}' классифицирован как ТЕХНИЧЕСКИЙ ✅")
             return True
+
+    print(f"[LOG] Вопрос '{question}' НЕ является техническим ❌")
     return False
 
 
-# Генерация ответа через Yandex GPT
+def find_relevant_context(question, document, cutoff=0.3):
+    """
+    Ищет наиболее релевантный раздел в документации.
+    """
+    sections = re.split(r"\n# \d+\.", document)
+
+    section_titles = []
+    section_mapping = {}
+
+    for section in sections:
+        lines = section.strip().split("\n")
+        if lines:
+            title = lines[0]  # Первый заголовок раздела
+            section_titles.append(title)
+            section_mapping[title] = section
+
+    # Ищем топ-3 наиболее похожих заголовка
+    best_matches = difflib.get_close_matches(question, section_titles, n=3, cutoff=cutoff)
+
+    best_match = None
+    best_score = 0
+
+    for match in best_matches:
+        score = SequenceMatcher(None, question.lower(), match.lower()).ratio()
+        if score > best_score:
+            best_score = score
+            best_match = match
+
+    print(f"[LOG] Вопрос: {question} | Найден: {best_match} | Совпадение: {best_score:.2f}")
+
+    if best_score < 0.3:
+        return None
+
+    return section_mapping[best_match]
+
+
 def generate_answer_via_gpt(question):
+    """
+    Генерация ответа через Yandex GPT
+    """
     model = ycloud.models.completions("yandexgpt").configure(temperature=0.5)
     prompt = f"Пожалуйста, предоставьте конкретный ответ на следующий вопрос:\nВопрос: {question}\nОтвет:"
     result = model.run(prompt)
@@ -59,12 +106,39 @@ def generate_answer_via_gpt(question):
     return "Извините, не удалось найти информацию по вашему запросу."
 
 
-# Экранирование Markdown
-def escape_markdown(text):
-    return re.sub(r'([_*[\]()~`>#+\-=|{}.!])', r'\\\1', text)
+# Очистка Markdown
+def clean_markdown_output(text):
+    """
+    Очищает текст перед отправкой в Telegram, убирая лишние символы Markdown.
+    """
+    text = re.sub(r"^#+\s*", "**", text, flags=re.MULTILINE)  # Убираем `#` из заголовков
+    text = re.sub(r"\\([.,()])", r"\1", text)  # Убираем обратные слэши перед знаками препинания
+    text = re.sub(r"\\-", "-", text)  # Убираем лишние слэши перед `-`, чтобы списки выглядели нормально
+    text = re.sub(r"\\\*", "*", text)  # Убираем экранирование `*`, если не используется в Markdown
+    return text.strip()
 
 
-# Приветственное сообщение
+# Команда /uptime (время работы бота)
+@bot.message_handler(commands=["uptime"])
+def uptime_message(message):
+    bot.send_message(message.chat.id, f"⏳ Бот работает уже {get_uptime()}")
+
+
+def send_alive_message():
+    """
+    Каждые 30 минут бот отправляет сообщение о том, что он работает.
+    """
+    chat_id = TELEGRAM_BOT_TOKEN
+    while True:
+        time.sleep(1800)  # 30 минут
+        bot.send_message(chat_id, f"✅ Бот всё ещё работает! ⏳ Аптайм: {get_uptime()}")
+
+
+# Запускаем поток для авто-уведомлений
+threading.Thread(target=send_alive_message, daemon=True).start()
+
+
+# Команда /start и /restart
 @bot.message_handler(commands=["start", "restart"])
 def start_message(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -83,6 +157,7 @@ def handle_message(message):
     chat_id = message.chat.id
     user_question = message.text
 
+    # Обработка кнопок
     if user_question in ["🛠 Справка", "💬 Задать вопрос", "ℹ️ О боте", "🔄 Перезапуск (Reset)"]:
         if user_question == "🛠 Справка":
             bot.send_message(chat_id, "Я могу помочь с техническими вопросами. Просто напишите ваш вопрос.")
@@ -95,36 +170,30 @@ def handle_message(message):
             start_message(message)
         return
 
-    general_responses = {
-        "привет": "Здравствуйте! Чем могу помочь?",
-        "ну привет": "Здравствуйте! Напишите, что вас интересует.",
-        "как дела": "Я бот, у меня всё отлично. Чем могу помочь?"
-    }
-
-    if user_question.lower() in general_responses:
-        bot.send_message(message.chat.id, general_responses[user_question.lower()])
-        return
-
-    if not is_technical_question(user_question, document_data):
+    if not is_technical_question(user_question):
         bot.send_message(chat_id, "Этот запрос не относится к техническим вопросам. Пожалуйста, задайте другой вопрос.")
         return
 
-    relevant_context = find_relevant_context(user_question, document_data)
-    if relevant_context:
-        formatted_message = (
-            f"**Ваш вопрос:**\n{escape_markdown(user_question)}\n\n"
-            f"**Ответ из документации:**\n{escape_markdown(relevant_context)}"
-        )
-        bot.send_message(chat_id, formatted_message, parse_mode="Markdown")
+    relevant_section = find_relevant_context(user_question, document_data)
+
+    if relevant_section:
+        bot.send_message(chat_id,
+                         f"**Ваш вопрос:**\n{clean_markdown_output(user_question)}\n\n"
+                         f"**Ответ из документации:**\n{clean_markdown_output(relevant_section)}",
+                         parse_mode="Markdown")
     else:
         bot.send_message(chat_id, "Выполняется поиск...")
         gpt_answer = generate_answer_via_gpt(user_question)
-        formatted_message = (
-            f"**Ваш вопрос:**\n{user_question}\n\n"
-            f"**Ответ найден:**\n{gpt_answer}"
-        )
-        bot.send_message(chat_id, formatted_message, parse_mode="Markdown")
+        bot.send_message(chat_id,
+                         f"**Ваш вопрос:**\n{clean_markdown_output(user_question)}\n\n"
+                         f"**Ответ найден:**\n{clean_markdown_output(gpt_answer)}",
+                         parse_mode="Markdown")
 
 
-if __name__ == "__main__":
-    bot.polling()
+while True:
+    try:
+        print("🚀 Бот запущен!")
+        bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    except Exception as e:
+        print(f"⚠️ Ошибка: {e}")
+        time.sleep(5)
