@@ -5,6 +5,7 @@ import datetime
 import telebot
 import difflib
 import threading
+import requests.exceptions
 from telebot import types
 from dotenv import load_dotenv
 from difflib import SequenceMatcher
@@ -43,10 +44,10 @@ def is_technical_question(question):
     """
     technical_keywords = [
         "IPMI", "BIOS", "RAID", "вентилятор", "сервер", "контроллер", "ОС", "сеть", "SSH", "драйвер", "API",
-        "Windows", "Linux", "Ubuntu", "Debian", "Arch", "CentOS", "Fedora", "переустановка", "восстановление",
+        "Windows", "Linux", "Ubuntu", "Debian", "Arch", "CentOS", "Fedora", "виндовс", "винду", "переустановка", "восстановление",
         "диагностика", "логи", "видеокарта", "VGA", "SSD", "HDD", "UEFI", "POST", "разгон", "установка",
         "железо", "процессор", "чипсет", "интерфейс", "настройка", "оперативная память", "режим", "порт",
-        "дисковая система", "BIOS", "материнская плата", "разгон", "хранилище", "охлаждение", "конфигурация",
+        "дисковая система", "материнская плата", "разгон", "хранилище", "охлаждение", "конфигурация",
         "система", "apt", "yum", "snap", "dpkg", "systemctl", "grub", "swap", "root", "boot", "sudo", "bash"
     ]
 
@@ -191,10 +192,27 @@ def handle_message(message):
                          parse_mode="Markdown")
 
 
+def ping_telegram():
+    """Каждые 5 минут бот делает пустой запрос к API Telegram, чтобы не зависать."""
+    while True:
+        try:
+            bot.get_me()
+            print("✅ API Telegram работает!")
+        except Exception as e:
+            print(f"⚠️ Ошибка API Telegram: {e}")
+        time.sleep(300)  # Ждём 5 минут
+
+# Запускаем поток с пингом
+threading.Thread(target=ping_telegram, daemon=True).start()
+
+
 while True:
     try:
         print("🚀 Бот запущен!")
-        bot.infinity_polling(timeout=10, long_polling_timeout=5)
+        bot.infinity_polling(timeout=30, long_polling_timeout=25)
+    except requests.exceptions.ReadTimeout:
+        print("⚠️ ReadTimeout! Telegram API не отвечает, пробуем снова...")
+        time.sleep(5)
     except Exception as e:
         print(f"⚠️ Ошибка: {e}")
         time.sleep(5)
