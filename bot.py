@@ -60,7 +60,7 @@ def is_technical_question(question):
     return False
 
 
-def find_relevant_context(question, document, cutoff=0.3):
+def find_relevant_context(question, document, cutoff=0.4):
     """
     Ищет наиболее релевантный раздел в документации.
     """
