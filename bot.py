@@ -27,12 +27,12 @@ start_time = datetime.datetime.now()
 def get_uptime():
     """Возвращает, сколько времени бот работает (формат: Часы:Минуты:Секунды)"""
     uptime = datetime.datetime.now() - start_time
-    return str(uptime).split('.')[0]  # Убираем микросекунды
+    return str(uptime).split('.')[0]
 
 
 def load_document(filepath):
     with open(filepath, "r", encoding="utf-8") as file:
-        return file.read()  # Читаем весь файл как строку
+        return file.read()
 
 
 document_data = load_document("qa.md")
@@ -44,7 +44,8 @@ def is_technical_question(question):
     """
     technical_keywords = [
         "IPMI", "BIOS", "RAID", "вентилятор", "сервер", "контроллер", "ОС", "сеть", "SSH", "драйвер", "API",
-        "Windows", "Linux", "Ubuntu", "Debian", "Arch", "CentOS", "Fedora", "виндовс", "винду", "переустановка", "восстановление",
+        "Windows", "Linux", "Ubuntu", "Debian", "Arch", "CentOS", "Fedora", "виндовс", "винду", "переустановка",
+        "восстановление",
         "диагностика", "логи", "видеокарта", "VGA", "SSD", "HDD", "UEFI", "POST", "разгон", "установка",
         "железо", "процессор", "чипсет", "интерфейс", "настройка", "оперативная память", "режим", "порт",
         "дисковая система", "материнская плата", "разгон", "хранилище", "охлаждение", "конфигурация",
@@ -72,7 +73,7 @@ def find_relevant_context(question, document, cutoff=0.4):
     for section in sections:
         lines = section.strip().split("\n")
         if lines:
-            title = lines[0]  # Первый заголовок раздела
+            title = lines[0]
             section_titles.append(title)
             section_mapping[title] = section
 
@@ -136,7 +137,6 @@ def send_alive_message():
         bot.send_message(chat_id, f"✅ Бот всё ещё работает! ⏳ Аптайм: {get_uptime()}")
 
 
-# Запускаем поток для авто-уведомлений
 threading.Thread(target=send_alive_message, daemon=True).start()
 
 
@@ -200,19 +200,24 @@ def ping_telegram():
             print("✅ API Telegram работает!")
         except Exception as e:
             print(f"⚠️ Ошибка API Telegram: {e}")
-        time.sleep(300)  # Ждём 5 минут
+        time.sleep(300)
 
-# Запускаем поток с пингом
+
 threading.Thread(target=ping_telegram, daemon=True).start()
-
-
-while True:
-    try:
-        print("🚀 Бот запущен!")
-        bot.infinity_polling(timeout=30, long_polling_timeout=25)
-    except requests.exceptions.ReadTimeout:
-        print("⚠️ ReadTimeout! Telegram API не отвечает, пробуем снова...")
-        time.sleep(5)
-    except Exception as e:
-        print(f"⚠️ Ошибка: {e}")
-        time.sleep(5)
+if __name__ == "__main__":
+    while True:
+        try:
+            print("🚀 Бот запущен!")
+            # bot.infinity_polling(timeout=30, long_polling_timeout=25)
+            bot.infinity_polling(none_stop=True)
+        except requests.exceptions.ReadTimeout:
+            print("⚠️ ReadTimeout! Telegram API не отвечает, пробуем снова...")
+            time.sleep(5)
+        except Exception as e:
+            print(f"⚠️ Ошибка: {e}")
+            time.sleep(5)
+        except KeyboardInterrupt:
+            print(f"Завершение работы бота")
+            bot.stop_polling()
+            time.sleep(5)
+            break
