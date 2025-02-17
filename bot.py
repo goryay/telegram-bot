@@ -18,14 +18,11 @@ YANDEX_CLOUD_OAUTH_TOKEN = os.getenv("YANDEX_CLOUD_OAUTH_TOKEN")
 ycloud = YCloudML(folder_id=YANDEX_CLOUD_FOLDER_ID, auth=YANDEX_CLOUD_OAUTH_TOKEN)
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
-# 🔹 Загружаем файл для индекса
 file = ycloud.files.upload("qa.md", ttl_days=5, expiration_policy="static")
 
-# 🔹 Создаем индекс без указания ID
 operation = ycloud.search_indexes.create_deferred([file])
 search_index = operation.wait()
 
-# 🔹 Подключаем индекс к ассистенту
 tool = ycloud.tools.search_index(search_index)
 assistant = ycloud.assistants.create("yandexgpt", tools=[tool])
 thread = ycloud.threads.create()
