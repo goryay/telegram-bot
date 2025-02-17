@@ -56,6 +56,26 @@ def clean_markdown_output(text):
     return text.strip()
 
 
+def is_technical_question(question):
+    technical_keywords = [
+        "IPMI", "BIOS", "RAID", "вентилятор", "сервер", "контроллер", "ОС", "сеть", "SSH", "драйвер", "API",
+        "Windows", "Linux", "Ubuntu", "Debian", "Arch", "CentOS", "Fedora", "виндовс", "винду", "переустановка",
+        "восстановление",
+        "диагностика", "логи", "видеокарта", "VGA", "SSD", "HDD", "UEFI", "POST", "разгон", "установка",
+        "железо", "процессор", "чипсет", "интерфейс", "настройка", "оперативная память", "режим", "порт",
+        "дисковая система", "материнская плата", "разгон", "хранилище", "охлаждение", "конфигурация",
+        "система", "apt", "yum", "snap", "dpkg", "systemctl", "grub", "swap", "root", "boot", "sudo", "bash"
+    ]
+
+    for keyword in technical_keywords:
+        if keyword in question.lower():
+            print(f"[LOG] Вопрос '{question}' классифицирован как ТЕХНИЧЕСКИЙ ✅")
+            return True
+
+    print(f"[LOG] Вопрос '{question}' НЕ является техническим ❌")
+    return False
+
+
 @bot.message_handler(commands=["start", "restart"])
 def start_message(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -84,6 +104,10 @@ def handle_message(message):
         elif user_question == "🔄 Перезапуск (Reset)":
             bot.send_message(chat_id, "Сброс выполнен. Вы можете задать новый вопрос.")
             start_message(message)
+        return
+
+    if not is_technical_question(user_question):
+        bot.send_message(chat_id, "Этот запрос не относится к техническим вопросам. Пожалуйста, задайте другой вопрос.")
         return
 
     bot.send_message(chat_id, "🔍 Выполняется поиск...")
