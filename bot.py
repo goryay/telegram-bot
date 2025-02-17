@@ -27,12 +27,31 @@ tool = ycloud.tools.search_index(search_index)
 assistant = ycloud.assistants.create("yandexgpt", tools=[tool])
 thread = ycloud.threads.create()
 
+TECHNICAL_KEYWORDS = [
+    "IPMI", "BIOS", "RAID", "вентилятор", "сервер", "контроллер", "ОС", "сеть", "SSH", "драйвер", "API",
+    "Windows", "Linux", "Ubuntu", "Debian", "Arch", "CentOS", "Fedora", "виндовс", "винду", "переустановка",
+    "восстановление", "диагностика", "логи", "видеокарта", "VGA", "SSD", "HDD", "UEFI", "POST", "разгон",
+    "установка", "железо", "процессор", "чипсет", "интерфейс", "настройка", "оперативная память", "режим",
+    "порт", "дисковая система", "материнская плата", "разгон", "хранилище", "охлаждение", "конфигурация",
+    "система", "apt", "yum", "snap", "dpkg", "systemctl", "grub", "swap", "root", "boot", "sudo", "bash"
+]
+
+
+def is_technical_question(question):
+    for keyword in TECHNICAL_KEYWORDS:
+        if keyword.lower() in question.lower():
+            print(f"[LOG] Вопрос '{question}' классифицирован как ТЕХНИЧЕСКИЙ ✅")
+            return True
+
+    print(f"[LOG] Вопрос '{question}' НЕ является техническим ❌")
+    return False
+
 
 def generation_answer_via_assistant(question):
     """
     Запрос в ассистент, который сначала ищет в файле, а затем в GPT.
     """
-    thread.write(question)
+    thread.write(f"Предыдущие вопросы и ответы: {thread.read()}\n\nТекущий вопрос: {question}")
     run = assistant.run(thread)
     result = run.wait()
     return result.text if result.text else "Извините, не удалось найти информацию."
@@ -56,26 +75,6 @@ def clean_markdown_output(text):
     return text.strip()
 
 
-def is_technical_question(question):
-    technical_keywords = [
-        "IPMI", "BIOS", "RAID", "вентилятор", "сервер", "контроллер", "ОС", "сеть", "SSH", "драйвер", "API",
-        "Windows", "Linux", "Ubuntu", "Debian", "Arch", "CentOS", "Fedora", "виндовс", "винду", "переустановка",
-        "восстановление",
-        "диагностика", "логи", "видеокарта", "VGA", "SSD", "HDD", "UEFI", "POST", "разгон", "установка",
-        "железо", "процессор", "чипсет", "интерфейс", "настройка", "оперативная память", "режим", "порт",
-        "дисковая система", "материнская плата", "разгон", "хранилище", "охлаждение", "конфигурация",
-        "система", "apt", "yum", "snap", "dpkg", "systemctl", "grub", "swap", "root", "boot", "sudo", "bash"
-    ]
-
-    for keyword in technical_keywords:
-        if keyword in question.lower():
-            print(f"[LOG] Вопрос '{question}' классифицирован как ТЕХНИЧЕСКИЙ ✅")
-            return True
-
-    print(f"[LOG] Вопрос '{question}' НЕ является техническим ❌")
-    return False
-
-
 @bot.message_handler(commands=["start", "restart"])
 def start_message(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -83,7 +82,7 @@ def start_message(message):
 
     bot.send_message(
         message.chat.id,
-        "Привет! Я бот технической поддержки. Напишите ваш вопрос, и я постараюсь найти ответ.",
+        "Привет! Я бот технической поддержки. Напишите ваш вопрос, и я постараюсь Вам помочь.",
     )
 
 
@@ -114,15 +113,21 @@ def handle_message(message):
 
     assistant_answer = generation_answer_via_assistant(user_question)
 
-    if "Извините, не удалось найти информацию" not in assistant_answer:
+    if assistant_answer:
         bot.send_message(chat_id,
-                         f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n**Ответ:**\n{clean_markdown_output(assistant_answer)}",
+                         f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
+                         f"**Ответ:**\n{clean_markdown_output(assistant_answer)}",
                          parse_mode="Markdown")
     else:
         gpt_answer = generation_answer_via_gpt(user_question)
-        bot.send_message(chat_id,
-                         f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n**Ответ найден через Yandex GPT:**\n{clean_markdown_output(gpt_answer)}",
-                         parse_mode="Markdown")
+        if gpt_answer:
+            bot.send_message(chat_id,
+                             f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
+                             f"**Ответ найден через Yandex GPT:**\n{clean_markdown_output(gpt_answer)}",
+                             parse_mode="Markdown"
+                             )
+        else:
+            bot.send_message(chat_id, "Извините, не удалось найти информацию по вашему запросу.")
 
 
 if __name__ == "__main__":
