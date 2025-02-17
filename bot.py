@@ -79,7 +79,7 @@ def is_technical_question(question):
 @bot.message_handler(commands=["start", "restart"])
 def start_message(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🛠 Справка", "💬 Задать вопрос", "ℹ️ О боте", "🔄 Перезапуск (Reset)")
+    markup.add("🛠 Справка", "💬 Задать вопрос", "ℹ️ О боте", "🔄 Перезапуск (Reset)", "🆘 Поддержка")
 
     bot.send_message(
         message.chat.id,
@@ -92,7 +92,7 @@ def handle_message(message):
     chat_id = message.chat.id
     user_question = message.text
 
-    if user_question in ["🛠 Справка", "💬 Задать вопрос", "ℹ️ О боте", "🔄 Перезапуск (Reset)"]:
+    if user_question in ["🛠 Справка", "💬 Задать вопрос", "ℹ️ О боте", "🔄 Перезапуск (Reset)", "🆘 Поддержка"]:
         if user_question == "🛠 Справка":
             bot.send_message(chat_id, "Я могу помочь с техническими вопросами. Просто напишите ваш вопрос.")
         elif user_question == "💬 Задать вопрос":
