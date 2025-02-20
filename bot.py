@@ -2,6 +2,7 @@ import os
 import re
 import time
 import types
+import string
 import telebot
 import threading
 import requests.exceptions
@@ -36,14 +37,22 @@ TECHNICAL_KEYWORDS = [
     "восстановление", "диагностика", "логи", "видеокарта", "VGA", "SSD", "HDD", "UEFI", "POST", "разгон",
     "установка", "железо", "процессор", "чипсет", "интерфейс", "настройка", "оперативная память", "режим",
     "порт", "дисковая система", "материнская плата", "разгон", "хранилище", "охлаждение", "конфигурация",
-    "система", "apt", "yum", "snap", "dpkg", "systemctl", "grub", "swap", "root", "boot", "sudo", "bash"
+    "система", "apt", "yum", "snap", "dpkg", "systemctl", "grub", "swap", "root", "boot", "sudo", "bash",
+    "Astra", "Astra Linux", "Clonezilla", "Supermicro", "IPDROM", "RAID-контроллер", "гипервизор", "GPT",
+    "PXE-загрузка", "KVM", "LiveCD"
 ]
 
 
+def normalize_question(question):
+    return question.translate(str.maketrans("", "", string.punctuation)).lower()
+
+
 def is_technical_question(question):
+    normalized_question = normalize_question(question)
+
     for keyword in TECHNICAL_KEYWORDS:
-        if keyword.lower() in question.lower():
-            print(f"[LOG] Вопрос '{question}' классифицирован как ТЕХНИЧЕСКИЙ ✅")
+        if keyword.lower() in normalized_question:
+            print(f"[LOG] Вопрос '{question}' классифицирован как ТЕХНИЧЕСКИЙ ✅ (ключевое слово: {keyword})")
             return True
 
     print(f"[LOG] Вопрос '{question}' НЕ является техническим ❌")
@@ -54,9 +63,17 @@ def generation_answer_via_assistant(question):
     """
     Запрос в ассистент, который сначала ищет в файле, а затем в GPT.
     """
-    thread.write(f"Предыдущие вопросы и ответы: {thread.read()}\n\nТекущий вопрос: {question}")
+    previous_questions = thread.read()
+
+    if previous_questions:
+        prompt = f"Контекст предыдущего обсуждения: {previous_questions}\n\nТекущий вопрос: {question}"
+    else:
+        prompt = f"Текущий вопрос: {question}"
+
+    thread.write(prompt)
     run = assistant.run(thread)
     result = run.wait()
+
     return result.text if result.text else "Извините, не удалось найти информацию."
 
 
@@ -111,7 +128,7 @@ def handle_message(message):
             start_message(message)
         return
 
-    if not is_technical_question(user_question):
+    if not is_technical_question(normalize_question(user_question)):
         bot.send_message(chat_id, "Этот запрос не относится к техническим вопросам. Пожалуйста, задайте другой вопрос.")
         return
 
@@ -136,20 +153,6 @@ def handle_message(message):
             bot.send_message(chat_id, "Извините, не удалось найти информацию по вашему запросу.")
 
 
-# Функция проверки аптайма бота
-# def get_uptime():
-#    """Возвращает, сколько времени бот работает (ЧЧ:ММ:СС)"""
-#    uptime = time.time() - start_time
-#    return time.strftime("%H:%M:%S", time.gmtime(uptime))
-
-
-# Функция для отправки сообщений о работе бота
-# def send_alive_message():
-#    while True:
-#        time.sleep(1800)  # 30 минут
-#        bot.send_message(CHAT_ID, f"✅ Бот всё ещё работает! ⏳ Аптайм: {get_uptime()}")
-
-
 # Функция для периодического пинга Telegram API
 def ping_telegram():
     while True:
@@ -162,22 +165,24 @@ def ping_telegram():
 
 
 # Запускаем фоновые задачи
-# threading.Thread(target=send_alive_message, daemon=True).start()
 threading.Thread(target=ping_telegram, daemon=True).start()
 
 if __name__ == "__main__":
     while True:
         try:
             print("🚀 Бот запущен!")
-            bot.infinity_polling(none_stop=True)
+            bot.infinity_polling(timeout=60, long_polling_timeout=30)
         except requests.exceptions.ReadTimeout:
-            print("⚠️ ReadTimeout! Telegram API не отвечает, пробуем снова...")
-            time.sleep(5)
+            print("⚠️ ReadTimeout! Telegram API не отвечает, пробуем снова через 10 секунд...")
+            time.sleep(10)
+        except requests.exceptions.ConnectionError:
+            print("⚠️ ConnectionError! Проблема с подключением к Telegram API. Повтор через 15 секунд...")
+            time.sleep(15)
         except Exception as e:
             print(f"⚠️ Ошибка: {e}")
             time.sleep(5)
         except KeyboardInterrupt:
-            print(f"Завершение работы бота")
+            print("Завершение работы бота")
             bot.stop_polling()
             time.sleep(5)
             break
