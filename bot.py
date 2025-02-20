@@ -9,8 +9,11 @@ from telebot import types
 from dotenv import load_dotenv
 from yandex_cloud_ml_sdk import YCloudML
 
+from search_assistant_test import CHAT_ID
+
 load_dotenv()
 
+CHAT_ID = os.getenv("CHAT_ID")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 YANDEX_CLOUD_FOLDER_ID = os.getenv("YANDEX_CLOUD_FOLDER_ID")
 YANDEX_CLOUD_OAUTH_TOKEN = os.getenv("YANDEX_CLOUD_OAUTH_TOKEN")
@@ -101,7 +104,8 @@ def handle_message(message):
         elif user_question == "ℹ️ О боте":
             bot.send_message(chat_id, "Я бот технической поддержки. Постараюсь помочь с Вашей проблемой.")
         elif user_question == "🆘 Поддержка":
-            bot.send_message(chat_id, "Если остались вопросы, напишите на почту: mtrx@ipdrom.ru.", parse_mode="Markdown")
+            bot.send_message(chat_id, "Если остались вопросы, напишите на почту: mtrx@ipdrom.ru.",
+                             parse_mode="Markdown")
         elif user_question == "🔄 Перезапуск (Reset)":
             bot.send_message(chat_id, "Сброс выполнен. Вы можете задать новый вопрос.")
             start_message(message)
@@ -131,6 +135,35 @@ def handle_message(message):
         else:
             bot.send_message(chat_id, "Извините, не удалось найти информацию по вашему запросу.")
 
+
+# Функция проверки аптайма бота
+# def get_uptime():
+#    """Возвращает, сколько времени бот работает (ЧЧ:ММ:СС)"""
+#    uptime = time.time() - start_time
+#    return time.strftime("%H:%M:%S", time.gmtime(uptime))
+
+
+# Функция для отправки сообщений о работе бота
+# def send_alive_message():
+#    while True:
+#        time.sleep(1800)  # 30 минут
+#        bot.send_message(CHAT_ID, f"✅ Бот всё ещё работает! ⏳ Аптайм: {get_uptime()}")
+
+
+# Функция для периодического пинга Telegram API
+def ping_telegram():
+    while True:
+        try:
+            bot.get_me()
+            print("✅ API Telegram работает!")
+        except Exception as e:
+            print(f"⚠️ Ошибка API Telegram: {e}")
+        time.sleep(300)  # 5 минут
+
+
+# Запускаем фоновые задачи
+# threading.Thread(target=send_alive_message, daemon=True).start()
+threading.Thread(target=ping_telegram, daemon=True).start()
 
 if __name__ == "__main__":
     while True:
