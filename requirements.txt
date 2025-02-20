@@ -1,9 +1,5 @@
-python-telegram-bot==13.15
-requests
-python-dotenv~=1.0.1
-urllib3==1.26.5
-certifi
-six
-
-telebot~=0.0.5
-pyTelegramBotAPI~=4.24.0
+telebot==4.26.0
+requests==2.32.3
+python-dotenv==1.0.1
+yandex-cloud-ml-sdk==0.2.0
+yandexcloud==0.326.0
