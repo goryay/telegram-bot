@@ -10,8 +10,6 @@ from telebot import types
 from dotenv import load_dotenv
 from yandex_cloud_ml_sdk import YCloudML
 
-from search_assistant_test import CHAT_ID
-
 load_dotenv()
 
 CHAT_ID = os.getenv("CHAT_ID")
@@ -88,11 +86,23 @@ def generation_answer_via_gpt(question):
 
 
 def clean_markdown_output(text):
-    text = re.sub(r"^#+\s*", "**", text, flags=re.MULTILINE)
-    text = re.sub(r"\\([.,()])", r"\1", text)
-    text = re.sub(r"\\-", "-", text)
-    text = re.sub(r"\\\*", "*", text)
-    return text.strip()
+    escape_chars = r"_*[]()~`>#+-=|{}.!"
+    return "".join(f"\\{char}" if char in escape_chars else char for char in text).strip()
+
+
+def escape_markdown(text):
+    escape_chars = r"_*[]()~`>#+-=|{}.!\\"
+    return "".join(f"\\{char}" if char in escape_chars else char for char in text)
+
+
+# 🔹 Безопасная отправка сообщений
+def safe_send_message(chat_id, text):
+    try:
+        escaped_text = escape_markdown("Пример *текста* с Markdown")
+        bot.send_message(chat_id, escaped_text, parse_mode="MarkdownV2")
+    except Exception as e:
+        print(f"⚠️ Ошибка при отправке сообщения: {e}")
+        bot.send_message(chat_id, "⚠️ Ошибка при обработке сообщения. Попробуйте ещё раз.")
 
 
 @bot.message_handler(commands=["start", "restart"])
@@ -140,14 +150,14 @@ def handle_message(message):
         bot.send_message(chat_id,
                          f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
                          f"**Ответ:**\n{clean_markdown_output(assistant_answer)}",
-                         parse_mode="Markdown")
+                         parse_mode="MarkdownV2")
     else:
         gpt_answer = generation_answer_via_gpt(user_question)
         if gpt_answer:
             bot.send_message(chat_id,
                              f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
                              f"**Ответ найден через Yandex GPT:**\n{clean_markdown_output(gpt_answer)}",
-                             parse_mode="Markdown"
+                             parse_mode="MarkdownV2"
                              )
         else:
             bot.send_message(chat_id, "Извините, не удалось найти информацию по вашему запросу.")
