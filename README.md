@@ -11,12 +11,11 @@
 
 ## Dependencies used `requirements.txt`
 ```
-python-telegram-bot==13.15
-requests
-python-dotenv
-urllib3==1.26.5
-certifi
-six
+telebot==4.26.0
+requests==2.32.3
+python-dotenv==1.0.1
+yandex-cloud-ml-sdk==0.2.0
+yandexcloud==0.326.0
 ```
 
 ## Setting dependencies
