@@ -1,6 +1,5 @@
 import os
 import time
-import types
 import string
 import telebot
 import threading
@@ -39,10 +38,11 @@ TECHNICAL_KEYWORDS = [
     "PXE-загрузка", "KVM", "LiveCD"
 ]
 
+# Словарь для хранения контекста беседы
+user_context = {}
 
 def normalize_question(question):
     return question.translate(str.maketrans("", "", string.punctuation)).lower()
-
 
 def is_technical_question(question):
     normalized_question = normalize_question(question)
@@ -55,12 +55,11 @@ def is_technical_question(question):
     print(f"[LOG] Вопрос '{question}' НЕ является техническим ❌")
     return False
 
-
 def generation_answer_via_assistant(question):
     """
     Запрос в ассистент, который сначала ищет в файле, а затем в GPT.
     """
-    previous_questions = thread.read()
+    previous_questions = user_context.get("previous_question", "")
 
     if previous_questions:
         prompt = f"Контекст предыдущего обсуждения: {previous_questions}\n\nТекущий вопрос: {question}"
@@ -73,7 +72,6 @@ def generation_answer_via_assistant(question):
 
     return result.text if result.text else "Извините, не удалось найти информацию."
 
-
 def generation_answer_via_gpt(question):
     """
     Генерация ответа через Yandex GPT (если в файле ничего не найдено).
@@ -83,26 +81,12 @@ def generation_answer_via_gpt(question):
     result = model.run(prompt)
     return result[0].text.strip() if result else "Извините, не удалось найти информацию."
 
-
-def clean_markdown_output(text):
+def escape_markdown_v2(text):
+    """
+    Экранирование спецсимволов для MarkdownV2 в Telegram.
+    """
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     return "".join(f"\\{char}" if char in escape_chars else char for char in text).strip()
-
-
-def escape_markdown(text):
-    escape_chars = r"_*[]()~`>#+-=|{}.!\\"
-    return "".join(f"\\{char}" if char in escape_chars else char for char in text)
-
-
-# 🔹 Безопасная отправка сообщений
-def safe_send_message(chat_id, text):
-    try:
-        escaped_text = escape_markdown("Пример *текста* с Markdown")
-        bot.send_message(chat_id, escaped_text, parse_mode="MarkdownV2")
-    except Exception as e:
-        print(f"⚠️ Ошибка при отправке сообщения: {e}")
-        bot.send_message(chat_id, "⚠️ Ошибка при обработке сообщения. Попробуйте ещё раз.")
-
 
 @bot.message_handler(commands=["start", "restart"])
 def start_message(message):
@@ -116,11 +100,10 @@ def start_message(message):
         reply_markup=markup,
     )
 
-
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
-    user_question = message.text
+    user_question = message.text.strip()
 
     if user_question in ["🛠 Справка", "💬 Задать вопрос", "ℹ️ О боте", "🔄 Перезапуск (Reset)", "🆘 Поддержка"]:
         if user_question == "🛠 Справка":
@@ -131,15 +114,27 @@ def handle_message(message):
             bot.send_message(chat_id, "Я бот технической поддержки. Постараюсь помочь с Вашей проблемой.")
         elif user_question == "🆘 Поддержка":
             bot.send_message(chat_id, "Если остались вопросы, напишите на почту: mtrx@ipdrom.ru.",
-                             parse_mode="Markdown")
+                             parse_mode="MarkdownV2")
         elif user_question == "🔄 Перезапуск (Reset)":
             bot.send_message(chat_id, "Сброс выполнен. Вы можете задать новый вопрос.")
             start_message(message)
         return
 
-    if not is_technical_question(normalize_question(user_question)):
+    # Проверка на продолжение диалога
+    last_question = user_context.get(chat_id)
+
+    # Если текущий вопрос не технический и нет предыдущего вопроса — отклоняем
+    if not is_technical_question(user_question) and not last_question:
         bot.send_message(chat_id, "Этот запрос не относится к техническим вопросам. Пожалуйста, задайте другой вопрос.")
         return
+
+    # Если предыдущий вопрос был задан недавно и текущий короткий, рассматриваем его как продолжение
+    if last_question and len(user_question) < 20:
+        print(f"[LOG] '{user_question}' рассматривается как продолжение диалога ✅")
+        user_question = f"{last_question} → {user_question}"
+
+    # Сохраняем текущий вопрос в контексте
+    user_context[chat_id] = user_question
 
     bot.send_message(chat_id, "🔍 Выполняется поиск...")
 
@@ -147,17 +142,16 @@ def handle_message(message):
 
     if assistant_answer:
         bot.send_message(chat_id,
-                         f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
-                         f"**Ответ:**\n{clean_markdown_output(assistant_answer)}",
+                         f"*Ваш вопрос:* {escape_markdown_v2(user_question)}\n\n"
+                         f"*Ответ:*\n{escape_markdown_v2(assistant_answer)}",
                          parse_mode="MarkdownV2")
     else:
         gpt_answer = generation_answer_via_gpt(user_question)
         if gpt_answer:
             bot.send_message(chat_id,
-                             f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
-                             f"**Ответ найден через Yandex GPT:**\n{clean_markdown_output(gpt_answer)}",
-                             parse_mode="MarkdownV2"
-                             )
+                             f"*Ваш вопрос:* {escape_markdown_v2(user_question)}\n\n"
+                             f"*Ответ найден через Yandex GPT:*\n{escape_markdown_v2(gpt_answer)}",
+                             parse_mode="MarkdownV2")
         else:
             bot.send_message(chat_id, "Извините, не удалось найти информацию по вашему запросу.")
 
