@@ -125,8 +125,15 @@ def handle_message(message):
     chat_id = message.chat.id
     user_question = message.text
 
-    if chat_id in user_context:
-        user_question = f"{user_context[chat_id]} → {user_question}"
+    if chat_id in user_context and user_context[chat_id]:
+        last_question = user_context[chat_id]
+        if any(keyword in normalize_question(user_question) for keyword in TECHNICAL_KEYWORDS) and any(
+                keyword in normalize_question(last_question) for keyword in TECHNICAL_KEYWORDS):
+            user_question = f"{last_question} → {user_question}"
+        else:
+            user_context[chat_id] = user_question
+    else:
+        user_context[chat_id] = user_question
 
     if user_question in ["🛠 Справка", "💬 Задать вопрос", "ℹ️ О боте", "🔄 Перезапуск (Reset)", "🆘 Поддержка"]:
         if user_question == "🛠 Справка":
