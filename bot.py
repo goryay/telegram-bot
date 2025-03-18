@@ -40,6 +40,8 @@ TECHNICAL_KEYWORDS = [
 ]
 
 
+
+
 def normalize_question(question):
     return question.translate(str.maketrans("", "", string.punctuation)).lower()
 
@@ -150,7 +152,19 @@ def handle_message(message):
             start_message(message)
         return
 
-    user_context[chat_id] = user_question
+    if chat_id in user_context:
+        last_question = user_context[chat_id]
+        similarity = sum(1 for word in user_question.split() if word in last_question.split()) / max(
+            len(user_question.split()), 1)
+
+        if similarity < 0.5:
+            print(f'[LOG] Новый вопрос, сбрасываем контекст')
+            user_context[chat_id] = user_question
+        else:
+            print(f"[LOG] '{user_question}' воспринимается как продолжение '{last_question}' ✅")
+            user_question = f"{last_question} → {user_question}"
+    else:
+        user_context[chat_id] = user_question
 
     if not is_technical_question(normalize_question(user_question)):
         bot.send_message(chat_id, "Этот запрос не относится к техническим вопросам. Пожалуйста, задайте другой вопрос.")
