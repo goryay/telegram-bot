@@ -36,22 +36,37 @@ TECHNICAL_KEYWORDS = [
     "порт", "дисковая система", "материнская плата", "разгон", "хранилище", "охлаждение", "конфигурация",
     "система", "apt", "yum", "snap", "dpkg", "systemctl", "grub", "swap", "root", "boot", "sudo", "bash",
     "Astra", "Astra Linux", "Clonezilla", "Supermicro", "IPDROM", "RAID-контроллер", "гипервизор", "GPT",
-    "PXE-загрузка", "KVM", "LiveCD"
+    "PXE-загрузка", "KVM", "LiveCD", "флешка", "флешку","загрузочная флешка", "USB", "образ системы", "ISO", "запись образа",
+
 ]
 
+user_context = {}
 
+SHORT_REPLIES = ["не помогло", "что дальше?", "какие ещё варианты?", "это не работает",
+                 "данные рекомендации не помогли"]
 
 
 def normalize_question(question):
     return question.translate(str.maketrans("", "", string.punctuation)).lower()
 
 
-def is_technical_question(question):
+def is_technical_question(question, last_question=None):
     normalized_question = normalize_question(question)
 
     for keyword in TECHNICAL_KEYWORDS:
-        if keyword.lower() in normalized_question:
+        if keyword.lower() in normalized_question or any(
+            kw in normalized_question for kw in keyword.lower().split()
+        ):
             print(f"[LOG] Вопрос '{question}' классифицирован как ТЕХНИЧЕСКИЙ ✅ (ключевое слово: {keyword})")
+            return True
+
+    if last_question:
+        normalized_last_question = normalize_question(last_question)
+        common_words = set(normalized_question.split()) & set(normalized_last_question.split())
+        similarity = len(common_words) / max(len(normalized_question.split()), 1)
+
+        if similarity > 0.5:
+            print(f"[LOG] '{question}' воспринимается как уточнение '{last_question}', считаем его техническим ✅")
             return True
 
     print(f"[LOG] Вопрос '{question}' НЕ является техническим ❌")
@@ -119,23 +134,10 @@ def start_message(message):
     )
 
 
-user_context = {}
-
-
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
     user_question = message.text
-
-    if chat_id in user_context and user_context[chat_id]:
-        last_question = user_context[chat_id]
-        if any(keyword in normalize_question(user_question) for keyword in TECHNICAL_KEYWORDS) and any(
-                keyword in normalize_question(last_question) for keyword in TECHNICAL_KEYWORDS):
-            user_question = f"{last_question} → {user_question}"
-        else:
-            user_context[chat_id] = user_question
-    else:
-        user_context[chat_id] = user_question
 
     if user_question in ["🛠 Справка", "💬 Задать вопрос", "ℹ️ О боте", "🔄 Перезапуск (Reset)", "🆘 Поддержка"]:
         if user_question == "🛠 Справка":
@@ -152,17 +154,28 @@ def handle_message(message):
             start_message(message)
         return
 
-    if chat_id in user_context:
+    if chat_id in user_context and user_context[chat_id]:
         last_question = user_context[chat_id]
-        similarity = sum(1 for word in user_question.split() if word in last_question.split()) / max(
-            len(user_question.split()), 1)
 
-        if similarity < 0.5:
-            print(f'[LOG] Новый вопрос, сбрасываем контекст')
-            user_context[chat_id] = user_question
-        else:
+        if user_question in SHORT_REPLIES:
             print(f"[LOG] '{user_question}' воспринимается как продолжение '{last_question}' ✅")
             user_question = f"{last_question} → {user_question}"
+
+        elif any(keyword in normalize_question(user_question) for keyword in TECHNICAL_KEYWORDS) and \
+                any(keyword in normalize_question(last_question) for keyword in TECHNICAL_KEYWORDS):
+            print(f"[LOG] Оба вопроса содержат технические термины, объединяем ✅")
+            user_question = f"{last_question} → {user_question}"
+
+        else:
+            similarity = sum(1 for word in user_question.split() if word in last_question.split()) / max(
+                len(user_question.split()), 1)
+
+            if similarity > 0.5:
+                print(f"[LOG] '{user_question}' воспринимается как уточнение '{last_question}' ✅")
+                user_question = f"{last_question} → {user_question}"
+            else:
+                print(f"[LOG] Новый вопрос, сбрасываем контекст")
+                user_context[chat_id] = user_question
     else:
         user_context[chat_id] = user_question
 
