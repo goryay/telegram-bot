@@ -10,6 +10,7 @@ from utils import *
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 user_context = {}
 
+
 def generation_answer_via_assistant(question):
     """
     Запрос в ассистент, который сначала ищет в файле, а затем в GPT.
@@ -27,6 +28,7 @@ def generation_answer_via_assistant(question):
 
     return result.text if result.text else "Извините, не удалось найти информацию."
 
+
 def generation_answer_via_gpt(question):
     """
     Генерация ответа через Yandex GPT (если в файле ничего не найдено).
@@ -35,6 +37,7 @@ def generation_answer_via_gpt(question):
     prompt = f"Пожалуйста, предоставьте конкретный ответ на следующий вопрос:\nВопрос: {question}\nОтвет:"
     result = model.run(prompt)
     return result[0].text.strip() if result else "Извините, не удалось найти информацию."
+
 
 @bot.message_handler(commands=["start", "restart"])
 def start_message(message):
@@ -47,6 +50,7 @@ def start_message(message):
         "Привет! Я бот технической поддержки. Напишите ваш вопрос, и я постараюсь Вам помочь.",
         reply_markup=markup,
     )
+
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
@@ -89,9 +93,10 @@ def handle_message(message):
         markup.add(types.InlineKeyboardButton("Ответ помог", callback_data=f"helpful_{message.message_id}"))
         markup.add(types.InlineKeyboardButton("Ответ не помог", callback_data=f"not_helpful_{message.message_id}"))
 
+        # Отправляем ответ с сохранением форматирования Markdown
         bot.send_message(chat_id,
                          f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
-                         f"**Ответ:**\n{clean_markdown_output(assistant_answer)}",
+                         f"**Ответ:**\n{escape_markdown(assistant_answer)}",
                          parse_mode="MarkdownV2",
                          reply_markup=markup)
     else:
@@ -103,11 +108,12 @@ def handle_message(message):
 
             bot.send_message(chat_id,
                              f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
-                             f"**Ответ найден через Yandex GPT:**\n{clean_markdown_output(gpt_answer)}",
+                             f"**Ответ найден через Yandex GPT:**\n{escape_markdown(gpt_answer)}",
                              parse_mode="MarkdownV2",
                              reply_markup=markup)
         else:
             bot.send_message(chat_id, "Извините, не удалось найти информацию по вашему запросу.")
+
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
@@ -115,7 +121,7 @@ def handle_callback(call):
     message_id = call.message.message_id
     data = call.data
     question = call.message.text.split("\n\n")[0].replace("**Ваш вопрос:** ", "")
-    answer = call.message.text.split("\n\n")[1].replace("**Ответ:**\n", "")
+    answer = call.message.text.split("\n\n")[1].replace("**Ответ:**\n", "").strip()
 
     if data.startswith("helpful_"):
         bot.answer_callback_query(call.id, "Спасибо за отзыв!")
@@ -127,6 +133,7 @@ def handle_callback(call):
         log_feedback(question, answer, "Ответ не помог", STATISTICS_FILE)
         bot.send_message(chat_id, "Пожалуйста, уточните вашу проблему, и я постараюсь помочь.")
 
+
 # Функция для периодического пинга Telegram API
 def ping_telegram():
     while True:
@@ -136,6 +143,7 @@ def ping_telegram():
         except Exception as e:
             print(f"⚠️ Ошибка API Telegram: {e}")
         time.sleep(300)  # 5 минут
+
 
 # Запускаем фоновые задачи
 threading.Thread(target=ping_telegram, daemon=True).start()

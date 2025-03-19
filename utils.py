@@ -1,8 +1,10 @@
 import string
 from telebot import types
 
+
 def normalize_question(question):
     return question.translate(str.maketrans("", "", string.punctuation)).lower()
+
 
 def is_technical_question(question, last_question=None, technical_keywords=None):
     normalized_question = normalize_question(question)
@@ -26,22 +28,25 @@ def is_technical_question(question, last_question=None, technical_keywords=None)
     print(f"[LOG] Вопрос '{question}' НЕ является техническим ❌")
     return False
 
+
 def clean_markdown_output(text):
-    escape_chars = r"_*[]()~`>#+-=|{}.!"
+    escape_chars = r"_*[]()~`>#+-=|{}.!\\-"
     return "".join(f"\\{char}" if char in escape_chars else char for char in text).strip()
 
+
 def escape_markdown(text):
-    escape_chars = r"_*[]()~`>#+-=|{}.!\\"
+    escape_chars = r"_*[]()~`>#+-=|{}.!\\-"
     return "".join(f"\\{char}" if char in escape_chars else char for char in text)
+
 
 def log_feedback(question, answer, feedback, statistics_file):
     with open(statistics_file, "a", encoding="utf-8") as file:
         file.write(f"Вопрос: {question}\nОтвет: {answer}\nОтзыв: {feedback}\n{'-' * 40}\n")
 
+
 def safe_send_message(bot, chat_id, text):
     try:
-        escaped_text = escape_markdown(text)
-        bot.send_message(chat_id, escaped_text, parse_mode="MarkdownV2")
+        bot.send_message(chat_id, text, parse_mode="MarkdownV2")
     except Exception as e:
         print(f"⚠️ Ошибка при отправке сообщения: {e}")
         bot.send_message(chat_id, "⚠️ Ошибка при обработке сообщения. Попробуйте ещё раз.")
