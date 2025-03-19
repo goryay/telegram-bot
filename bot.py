@@ -68,14 +68,11 @@ def handle_message(message):
             start_message(message)
         return
 
-    if chat_id in user_context and user_context[chat_id]:
-        last_question = user_context[chat_id]
+    last_question = user_context.get(chat_id)
 
-        if user_question in SHORT_REPLIES:
-            print(f"[LOG] '{user_question}' воспринимается как продолжение '{last_question}' ✅")
-            user_question = f"{last_question} → {user_question}"
-        else:
-            user_context[chat_id] = user_question
+    if last_question and user_question in SHORT_REPLIES:
+        print(f"[LOG] '{user_question}' воспринимается как продолжение '{last_question}' ✅")
+        user_question = f"{last_question} → {user_question}"
     else:
         user_context[chat_id] = user_question
 
