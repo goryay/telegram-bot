@@ -1,6 +1,5 @@
 import os
 import time
-import types
 import string
 import telebot
 import threading
@@ -36,14 +35,16 @@ TECHNICAL_KEYWORDS = [
     "порт", "дисковая система", "материнская плата", "разгон", "хранилище", "охлаждение", "конфигурация",
     "система", "apt", "yum", "snap", "dpkg", "systemctl", "grub", "swap", "root", "boot", "sudo", "bash",
     "Astra", "Astra Linux", "Clonezilla", "Supermicro", "IPDROM", "RAID-контроллер", "гипервизор", "GPT",
-    "PXE-загрузка", "KVM", "LiveCD", "флешка", "флешку","загрузочная флешка", "USB", "образ системы", "ISO", "запись образа",
-
+    "PXE-загрузка", "KVM", "LiveCD", "флешка", "флешку", "загрузочная флешка", "USB", "образ системы", "ISO",
+    "запись образа",
 ]
 
 user_context = {}
 
 SHORT_REPLIES = ["не помогло", "что дальше?", "какие ещё варианты?", "это не работает",
                  "данные рекомендации не помогли"]
+
+STATISTICS_FILE = "feedback_statistics.txt"
 
 
 def normalize_question(question):
@@ -55,7 +56,7 @@ def is_technical_question(question, last_question=None):
 
     for keyword in TECHNICAL_KEYWORDS:
         if keyword.lower() in normalized_question or any(
-            kw in normalized_question for kw in keyword.lower().split()
+                kw in normalized_question for kw in keyword.lower().split()
         ):
             print(f"[LOG] Вопрос '{question}' классифицирован как ТЕХНИЧЕСКИЙ ✅ (ключевое слово: {keyword})")
             return True
@@ -111,10 +112,15 @@ def escape_markdown(text):
     return "".join(f"\\{char}" if char in escape_chars else char for char in text)
 
 
+def log_feedback(question, answer, feedback):
+    with open(STATISTICS_FILE, "a", encoding="utf-8") as file:
+        file.write(f"Вопрос: {question}\nОтвет: {answer}\nОтзыв: {feedback}\n{'-' * 40}\n")
+
+
 # 🔹 Безопасная отправка сообщений
 def safe_send_message(chat_id, text):
     try:
-        escaped_text = escape_markdown("Пример *текста* с Markdown")
+        escaped_text = escape_markdown(text)
         bot.send_message(chat_id, escaped_text, parse_mode="MarkdownV2")
     except Exception as e:
         print(f"⚠️ Ошибка при отправке сообщения: {e}")
@@ -160,22 +166,8 @@ def handle_message(message):
         if user_question in SHORT_REPLIES:
             print(f"[LOG] '{user_question}' воспринимается как продолжение '{last_question}' ✅")
             user_question = f"{last_question} → {user_question}"
-
-        elif any(keyword in normalize_question(user_question) for keyword in TECHNICAL_KEYWORDS) and \
-                any(keyword in normalize_question(last_question) for keyword in TECHNICAL_KEYWORDS):
-            print(f"[LOG] Оба вопроса содержат технические термины, объединяем ✅")
-            user_question = f"{last_question} → {user_question}"
-
         else:
-            similarity = sum(1 for word in user_question.split() if word in last_question.split()) / max(
-                len(user_question.split()), 1)
-
-            if similarity > 0.5:
-                print(f"[LOG] '{user_question}' воспринимается как уточнение '{last_question}' ✅")
-                user_question = f"{last_question} → {user_question}"
-            else:
-                print(f"[LOG] Новый вопрос, сбрасываем контекст")
-                user_context[chat_id] = user_question
+            user_context[chat_id] = user_question
     else:
         user_context[chat_id] = user_question
 
@@ -188,20 +180,48 @@ def handle_message(message):
     assistant_answer = generation_answer_via_assistant(user_question)
 
     if assistant_answer:
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("Ответ помог", callback_data=f"helpful_{message.message_id}"))
+        markup.add(types.InlineKeyboardButton("Ответ не помог", callback_data=f"not_helpful_{message.message_id}"))
+
         bot.send_message(chat_id,
                          f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
                          f"**Ответ:**\n{clean_markdown_output(assistant_answer)}",
-                         parse_mode="MarkdownV2")
+                         parse_mode="MarkdownV2",
+                         reply_markup=markup)
     else:
         gpt_answer = generation_answer_via_gpt(user_question)
         if gpt_answer:
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("Ответ помог", callback_data=f"helpful_{message.message_id}"))
+            markup.add(types.InlineKeyboardButton("Ответ не помог", callback_data=f"not_helpful_{message.message_id}"))
+
             bot.send_message(chat_id,
                              f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
                              f"**Ответ найден через Yandex GPT:**\n{clean_markdown_output(gpt_answer)}",
-                             parse_mode="MarkdownV2"
-                             )
+                             parse_mode="MarkdownV2",
+                             reply_markup=markup)
         else:
             bot.send_message(chat_id, "Извините, не удалось найти информацию по вашему запросу.")
+
+
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callback(call):
+    chat_id = call.message.chat.id
+    message_id = call.message.message_id
+    data = call.data
+    question = call.message.text.split("\n\n")[0].replace("**Ваш вопрос:** ", "")
+    answer = call.message.text.split("\n\n")[1].replace("**Ответ:**\n", "")
+
+    if data.startswith("helpful_"):
+        bot.answer_callback_query(call.id, "Спасибо за отзыв!")
+        bot.edit_message_reply_markup(chat_id, message_id, reply_markup=None)
+        log_feedback(question, answer, "Ответ помог")
+    elif data.startswith("not_helpful_"):
+        bot.answer_callback_query(call.id, "Спасибо за отзыв! Попробуем улучшить ответ.")
+        bot.edit_message_reply_markup(chat_id, message_id, reply_markup=None)
+        log_feedback(question, answer, "Ответ не помог")
+        bot.send_message(chat_id, "Пожалуйста, уточните вашу проблему, и я постараюсь помочь.")
 
 
 # Функция для периодического пинга Telegram API
