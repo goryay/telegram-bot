@@ -81,7 +81,11 @@ def handle_message(message):
         user_context[chat_id] = user_question
 
     if not is_technical_question(normalize_question(user_question), last_question, TECHNICAL_KEYWORDS):
-        bot.send_message(chat_id, "Этот запрос не относится к техническим вопросам. Пожалуйста, задайте другой вопрос.")
+        if user_question in SHORT_REPLIES:
+            bot.send_message(chat_id, "Пожалуйста, уточните вашу проблему, и я постараюсь помочь.")
+        else:
+            bot.send_message(chat_id,
+                             "Этот запрос не относится к техническим вопросам. Пожалуйста, задайте другой вопрос.")
         return
 
     bot.send_message(chat_id, "🔍 Выполняется поиск...")
@@ -131,6 +135,9 @@ def handle_callback(call):
         bot.answer_callback_query(call.id, "Спасибо за отзыв! Попробуем улучшить ответ.")
         bot.edit_message_reply_markup(chat_id, message_id, reply_markup=None)
         log_feedback(question, answer, "Ответ не помог", STATISTICS_FILE)
+
+        # Добавляем логику для продолжения разговора
+        user_context[chat_id] = question
         bot.send_message(chat_id, "Пожалуйста, уточните вашу проблему, и я постараюсь помочь.")
 
 
