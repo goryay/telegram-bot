@@ -10,7 +10,7 @@ YANDEX_CLOUD_FOLDER_ID = os.getenv("YANDEX_CLOUD_FOLDER_ID")
 YANDEX_CLOUD_OAUTH_TOKEN = os.getenv("YANDEX_CLOUD_OAUTH_TOKEN")
 
 ycloud = YCloudML(folder_id=YANDEX_CLOUD_FOLDER_ID, auth=YANDEX_CLOUD_OAUTH_TOKEN)
-file = ycloud.files.upload("qa.md", ttl_days=5, expiration_policy="static")
+file = ycloud.files.upload("lsa.docx", ttl_days=5, expiration_policy="static")
 operation = ycloud.search_indexes.create_deferred([file])
 search_index = operation.wait()
 tool = ycloud.tools.search_index(search_index)
@@ -26,7 +26,7 @@ TECHNICAL_KEYWORDS = [
     "система", "apt", "yum", "snap", "dpkg", "systemctl", "grub", "swap", "root", "boot", "sudo", "bash",
     "Astra", "Astra Linux", "Clonezilla", "Supermicro", "IPDROM", "RAID-контроллер", "гипервизор", "GPT",
     "PXE-загрузка", "KVM", "LiveCD", "флешка", "флешку", "загрузочная флешка", "USB", "образ системы", "ISO",
-    "запись образа",
+    "запись образа", "lsa"
 ]
 
 SHORT_REPLIES = ["не помогло", "что дальше?", "какие ещё варианты?", "это не работает",
@@ -34,3 +34,10 @@ SHORT_REPLIES = ["не помогло", "что дальше?", "какие ещ
                  "Это не работает", "Данные рекомендации не помогли"]
 
 STATISTICS_FILE = "feedback_statistics.txt"
+
+CLARIFICATION_KEYWORDS = {
+    "установка": ["ОС (Windows, Linux, Astra)?"],
+    "не включается": ["Есть ли индикаторы? Пищит ли сервер?"],
+    "синий экран": ["На каком этапе? Есть ли код ошибки?"],
+    "RAID": ["Вы используете LSI, Intel или встроенный контроллер?"],
+}
