@@ -21,6 +21,7 @@ def normalize_os_hint(os_text):
 
 def generation_answer_via_assistant(question):
     os_hint, device_hint = extract_filters(question)
+    os_hint = normalize_os_hint(os_hint) if os_hint else None
     instructions = generate_instructions(os_hint, device_hint)
 
     previous_questions = thread.read()
@@ -32,7 +33,7 @@ def generation_answer_via_assistant(question):
     thread.write(prompt)
     run = assistant.run(thread)
     result = run.wait()
-    return result.text if result.text else "Извините, не удалось найти информацию."
+    return result.text if result.text else ""
 
 
 def generation_answer_via_gpt(question):
@@ -105,7 +106,7 @@ def handle_message(message):
         elif user_question == "🆘 Поддержка":
             bot.send_message(chat_id, "Если остались вопросы, напишите на почту: mtrx@ipdrom.ru.",
                              parse_mode="Markdown")
-        elif user_question == "🔄 Перезапуск (Reset)":
+        elif user_question == ["🔄 Перезапуск (Reset)", "/reset"]:
             bot.send_message(chat_id, "Сброс выполнен. Вы можете задать новый вопрос.")
             start_message(message)
             return
@@ -123,6 +124,7 @@ def handle_message(message):
         return
 
     os_hint, _ = extract_filters(user_question)
+    os_hint = normalize_os_hint(os_hint) if os_hint else None
     if not os_hint:
         ask_for_clarification(chat_id, user_question)
         return
@@ -130,24 +132,24 @@ def handle_message(message):
     bot.send_message(chat_id, "🔍 Выполняется поиск...")
 
     assistant_answer = generation_answer_via_assistant(user_question)
-    if assistant_answer:
+    if not assistant_answer or "в данном контексте нет информации" in assistant_answer.lower():
+        gpt_answer = generation_answer_via_gpt(user_question)
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("Ответ помог", callback_data=f"helpful_{message.message_id}"))
         markup.add(types.InlineKeyboardButton("Ответ не помог", callback_data=f"not_helpful_{message.message_id}"))
         bot.send_message(chat_id,
                          f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
-                         f"**Ответ:**\n{escape_markdown(assistant_answer)}",
+                         f"**Ответ найден через Yandex GPT:**\n{escape_markdown(gpt_answer)}",
                          parse_mode="MarkdownV2",
                          reply_markup=markup)
         return
 
-    gpt_answer = generation_answer_via_gpt(user_question)
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("Ответ помог", callback_data=f"helpful_{message.message_id}"))
     markup.add(types.InlineKeyboardButton("Ответ не помог", callback_data=f"not_helpful_{message.message_id}"))
     bot.send_message(chat_id,
                      f"**Ваш вопрос:** {clean_markdown_output(user_question)}\n\n"
-                     f"**Ответ найден через Yandex GPT:**\n{escape_markdown(gpt_answer)}",
+                     f"**Ответ:**\n{escape_markdown(assistant_answer)}",
                      parse_mode="MarkdownV2",
                      reply_markup=markup)
 
