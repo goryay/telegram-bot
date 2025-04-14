@@ -10,8 +10,18 @@ YANDEX_CLOUD_FOLDER_ID = os.getenv("YANDEX_CLOUD_FOLDER_ID")
 YANDEX_CLOUD_OAUTH_TOKEN = os.getenv("YANDEX_CLOUD_OAUTH_TOKEN")
 
 ycloud = YCloudML(folder_id=YANDEX_CLOUD_FOLDER_ID, auth=YANDEX_CLOUD_OAUTH_TOKEN)
-file = ycloud.files.upload("lsa.docx", ttl_days=5, expiration_policy="static")
-operation = ycloud.search_indexes.create_deferred([file])
+DOCX_FILES = [
+    "lsa.docx",
+    "megaraid.docx",
+    "clonzilla.docx",
+    "os.docx",
+    "raid_massiv.docx",
+    "ipmi_sm.docx"
+]
+
+uploaded_files = [ycloud.files.upload(f, ttl_days=5, expiration_policy="static") for f in DOCX_FILES]
+
+operation = ycloud.search_indexes.create_deferred(uploaded_files)
 search_index = operation.wait()
 tool = ycloud.tools.search_index(search_index)
 assistant = ycloud.assistants.create("yandexgpt", tools=[tool])
@@ -49,3 +59,13 @@ FOLLOWUP_CLARIFICATIONS = {
 
 OS_FILTERS = ["Windows", "Linux", "Ubuntu", "Astra"]
 DEVICE_FILTERS = ["сервер", "рабочая станция", "компьютер"]
+
+
+OS_FILTERS_LOWER = [os.lower() for os in OS_FILTERS]
+
+OS_ALIASES = {
+    "windows": ["windows", "виндовс", "винду", "винда", "вин"],
+    "linux": ["linux", "линукс"],
+    "ubuntu": ["ubuntu", "убунту"],
+    "astra": ["astra", "астра"]
+}

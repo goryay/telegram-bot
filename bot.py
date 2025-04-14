@@ -11,6 +11,14 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 user_context = {}
 
 
+def normalize_os_hint(os_text):
+    os_text = os_text.lower()
+    for canonical, variants in OS_ALIASES.items():
+        if os_text in variants:
+            return canonical.capitalize()
+    return None
+
+
 def generation_answer_via_assistant(question):
     os_hint, device_hint = extract_filters(question)
     instructions = generate_instructions(os_hint, device_hint)
@@ -35,8 +43,10 @@ def generation_answer_via_gpt(question):
 
 
 def ask_for_clarification(chat_id, question):
-    os_hint, _ = extract_filters(question)
-    if not os_hint:
+    os_hint, device_hint = extract_filters(question)
+    os_hint = normalize_os_hint(os_hint) if os_hint else None
+
+    if not os_hint or os_hint.lower() not in OS_FILTERS_LOWER:
         markup = types.InlineKeyboardMarkup()
         for os_name in OS_FILTERS:
             markup.add(types.InlineKeyboardButton(text=os_name, callback_data=f"os_{os_name}"))
@@ -44,12 +54,14 @@ def ask_for_clarification(chat_id, question):
         user_context[chat_id] = {"pending": question, "status": "waiting_os_selection"}
         return
 
-    clarifying = generate_clarifying_question(question)
-    if clarifying:
-        bot.send_message(chat_id, clarifying)
-        user_context[chat_id] = {"pending": question, "status": "waiting_dynamic_clarification"}
-    else:
-        bot.send_message(chat_id, "Пожалуйста, уточните ваш вопрос.")
+    if not device_hint:
+        clarifying = generate_clarifying_question(question)
+        if clarifying:
+            bot.send_message(chat_id, clarifying)
+            user_context[chat_id] = {"pending": question, "status": "waiting_dynamic_clarification"}
+            return
+
+    bot.send_message(chat_id, "Пожалуйста, уточните ваш вопрос.")
 
 
 def generate_clarifying_question(question):
