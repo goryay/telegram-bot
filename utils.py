@@ -1,5 +1,5 @@
 import string
-from config import OS_FILTERS, DEVICE_FILTERS
+from config import OS_ALIASES, OS_FILTERS, DEVICE_FILTERS
 from telebot import types
 
 def normalize_question(question):
@@ -54,8 +54,18 @@ def safe_send_message(bot, chat_id, text):
 
 def extract_filters(question):
     """Извлечение подсказок о типе ОС и устройства из вопроса."""
-    os_hint = next((os for os in OS_FILTERS if os.lower() in question.lower()), None)
-    device_hint = next((dev for dev in DEVICE_FILTERS if dev.lower() in question.lower()), None)
+    question_lower = question.lower()
+
+    # Поиск ОС по синонимам
+    os_hint = None
+    for canonical, aliases in OS_ALIASES.items():
+        if any(alias in question_lower for alias in aliases):
+            os_hint = canonical.capitalize()
+            break
+
+    # Поиск устройства
+    device_hint = next((dev for dev in DEVICE_FILTERS if dev.lower() in question_lower), None)
+
     return os_hint, device_hint
 
 def generate_instructions(os_hint, device_hint):

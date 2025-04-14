@@ -15,7 +15,7 @@ DOCX_FILES = [
     "megaraid.docx",
     "clonzilla.docx",
     "os.docx",
-    "raid_massiv.docx",
+    "raid_array.docx",
     "ipmi_sm.docx"
 ]
 

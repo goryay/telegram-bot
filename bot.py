@@ -89,7 +89,13 @@ def handle_message(message):
     chat_id = message.chat.id
     user_question = message.text
 
-    if user_question in ["🛠 Справка", "💬 Задать вопрос", "ℹ️ О боте", "🔄 Перезапуск (Reset)", "🆘 Поддержка"]:
+    # 🧩 Если пользователь ещё не видел меню — покажем
+    if not user_context.get(f"{chat_id}_menu_shown"):
+        start_message(message)
+        user_context[f"{chat_id}_menu_shown"] = True
+
+    if user_question in ["🛠 Справка", "💬 Задать вопрос", "ℹ️ О боте", "🔄 Перезапуск (Reset)", "🆘 Поддержка", "/reset",
+                         "/start"]:
         if user_question == "🛠 Справка":
             bot.send_message(chat_id, "Я могу помочь с техническими вопросами. Просто напишите ваш вопрос.")
         elif user_question == "💬 Задать вопрос":
@@ -102,6 +108,7 @@ def handle_message(message):
         elif user_question == "🔄 Перезапуск (Reset)":
             bot.send_message(chat_id, "Сброс выполнен. Вы можете задать новый вопрос.")
             start_message(message)
+            return
         return
 
     last_question = user_context.get(chat_id)
@@ -110,7 +117,8 @@ def handle_message(message):
     else:
         user_context[chat_id] = user_question
 
-    if not is_technical_question(normalize_question(user_question), last_question, TECHNICAL_KEYWORDS):
+    normalized_last = normalize_question(last_question) if isinstance(last_question, str) else ""
+    if not is_technical_question(normalize_question(user_question), normalized_last, TECHNICAL_KEYWORDS):
         ask_for_clarification(chat_id, user_question)
         return
 
